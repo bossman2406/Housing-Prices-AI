@@ -10,6 +10,8 @@ from sklearn.pipeline import Pipeline
 import streamlit as st 
 import streamlit as st
 from datetime import datetime
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 loaded_preprocessor = joblib.load('preprocessor/preprocessor_predictor.pkl')
    
@@ -54,15 +56,23 @@ district_mapping = {
 }
 
 
-# Transform an example new data point
-new_data = pd.DataFrame({
-    'new_date' : 2024,
-    'flat_type': ['4 ROOM'],
-    'district': ['East'],
-    'range_numeric': [12],
-    'floor_area_sqm': [105],    
-    'lease_commence_date': [1995],
-})
+def create_card(label, value):
+    return f"""
+        <div style="
+            border:2px solid #FFFFFF;
+            border-radius:5px;
+            padding:5px;
+            margin: 3px 0px;
+            background-color:#333333;
+            color:white;
+            width: 400px;  /* Fixed width for smaller card */
+            font-size: 80px;  /* Smaller font size */
+        ">
+            <h4 style="margin: 0px; font-weight: bold; color:white; font-size: 22px;">{label}</h4>
+            <h2 style="margin: 0px; color:white; font-size: 22px;">{value}</h2>
+        </div>
+    """
+
 
 def ___init__(self):
     original_data = pd.read_csv('housing_new.csv')
@@ -94,13 +104,61 @@ def get_price(new_data):
 
     y_pred = model_xgb.predict(transformed_new_data)*best_weight[0]+ model_rf.predict(transformed_new_data)*best_weight[1] +model_cat.predict(transformed_new_data)*best_weight[2]
     return y_pred
+def calculate_hdb_loan_details(purchase_price, tenure_years, grants ):
+    # Constants
+    interest_rate=2.6
+    ltv=80
+    stamp_duty_rate=3
+    monthly_interest_rate = (interest_rate / 100) / 12
+    loan_amount = float(purchase_price) * 0.8 - grants
+    num_payments = tenure_years * 12
 
+    # Check if loan amount is valid
+    if loan_amount <= 0:
+        raise ValueError("Loan amount is zero or negative. Check the CPF grants or purchase price.")
 
+    # Buyer's Stamp Duty (BSD)
+    bsd = calculate_stamp_duty(purchase_price, stamp_duty_rate)
+
+    # Monthly payment (Amortization formula)
+    monthly_payment = loan_amount * (monthly_interest_rate * (1 + monthly_interest_rate)**num_payments) \
+                      / ((1 + monthly_interest_rate)**num_payments - 1)
+
+    # Monthly breakdown of principal and interest
+    breakdown = []
+    remaining_balance = loan_amount
+    for _ in range(num_payments):
+        interest_payment = remaining_balance * monthly_interest_rate
+        principal_payment = monthly_payment - interest_payment
+        remaining_balance -= principal_payment
+        breakdown.append((principal_payment, interest_payment, remaining_balance))
+
+    # Format breakdown to ensure it's easier to use in displays
+    breakdown = [{"Principal": round(float(p),2), "Interest": round(float(i),2), "Remaining Balance": round(float(r),2)} 
+                 for p, i, r in breakdown]
+    # Format numbers to 2 significant figures
+
+    return {
+        "purchase_price": round(float(purchase_price),2),
+        "loan_amount": round(float(loan_amount),2),
+        "tenure_years": round(float(tenure_years),2),
+        "monthly_payment": round(float(monthly_payment),2),
+        "bsd": round(float(bsd),2),
+        "breakdown": breakdown
+    }
+
+def calculate_stamp_duty(price, rate):
+    if price <= 180000:
+        return price * 0.01
+    elif price <= 360000:
+        return (180000 * 0.01) + ((price - 180000) * 0.02)
+    else:
+        return (180000 * 0.01) + (180000 * 0.02) + ((price - 360000) * rate / 100)
 
 # Page configuration
 st.set_page_config(page_title = "HDB Resale Price Evaluation",layout= 'wide', initial_sidebar_state='expanded')
 # Application Header
-st.title(" :bar_chart: HDB Resale Price Evaluation")
+st.title(" :bar_chart:  HDB Resale Price Evaluation")
 st.markdown('<style>div.block-container{padding-top:40px; padding-left: 20px;}</style>',unsafe_allow_html=True)
 st.write('This application calculates the expected price of your HDB')
 
@@ -117,8 +175,8 @@ if 'month' not in st.session_state:
 # Sidebar for selecting year and month
 st.session_state['year'] = st.sidebar.selectbox(
     'Select year of purchase',
-    options=range(2000, datetime.now().year + 1),
-    index=(datetime.now().year - 2000)  # Default to current year
+    options=range(2000, datetime.now().year),
+    index=(datetime.now().year - 2001)  # Default to current year
 )
 
 st.session_state['month'] = st.sidebar.selectbox(
@@ -193,11 +251,35 @@ if st.sidebar.button('Evaluate', key = 'Evaluate'):
 
             st.session_state['prediction'] = get_price(new_data)
 #'new_date','flat_type', 'district', 'range_numeric' ,'floor_area_sqm', 'lease_commence_date'
-c1,c2 = st.columns((3,7))
+c1,c2,c3 = st.columns((3,4,4))
 with c1:
-
-    st.write("Column 1")
     if 'prediction' in st.session_state:
         prediction = st.session_state['prediction']
-        st.write(f"Estimated valuation of home: {prediction}")
-      
+        # Display the estimated valuation with increased font size
+        st.markdown(f"""
+            <h3 style="font-size: 20px; font-weight: bold;">Estimated valuation of home: ${round(float(prediction), 2)}</h3>
+        """, unsafe_allow_html=True)
+        
+        loan_tenure = st.slider("Select Loan Tenure (years):", min_value=1, max_value=35, value=20, step=1)
+        grants = st.number_input("Enter CPF Housing Grant:", min_value=0, value=50000, step=1000)
+
+        if st.button("Calculate Loan"):
+            purchase_price = st.session_state['prediction']  # Example purchase price
+            st.session_state['loan_details'] = calculate_hdb_loan_details(purchase_price, loan_tenure, grants)
+
+with c2: 
+    st.write("")
+    
+with c3:
+    if 'loan_details' in st.session_state:
+                # Assuming loan_details is available in the session state
+        loan_details = st.session_state['loan_details']
+
+        # Display loan details
+        st.subheader("Loan Details")
+        # Display loan details using the create_card function
+        st.markdown(create_card("Purchase Price", f"${loan_details['purchase_price']}"), unsafe_allow_html=True)
+        st.markdown(create_card("Loan Amount", f"${loan_details['loan_amount']}"), unsafe_allow_html=True)
+        st.markdown(create_card("Tenure", f"{loan_details['tenure_years']} years"), unsafe_allow_html=True)
+        st.markdown(create_card("Monthly Payment", f"${loan_details['monthly_payment']}"), unsafe_allow_html=True)
+        st.markdown(create_card("Buyer's Stamp Duty (BSD)", f"${loan_details['bsd']}"), unsafe_allow_html=True)

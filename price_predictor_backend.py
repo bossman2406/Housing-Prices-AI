@@ -98,8 +98,6 @@ def get_price(new_data):
 
     # Create a DataFrame with feature names
     transformed_new_data = pd.DataFrame(transformed_new_data, columns=all_feature_names)
-    print("Transformed New Data:")
-    print(transformed_new_data)
 
 
     y_pred = model_xgb.predict(transformed_new_data)*best_weight[0]+ model_rf.predict(transformed_new_data)*best_weight[1] +model_cat.predict(transformed_new_data)*best_weight[2]
@@ -139,11 +137,11 @@ def calculate_hdb_loan_details(purchase_price, tenure_years, grants ):
     # Format numbers to 2 significant figures
 
     return {
-        "purchase_price": round(float(purchase_price),2),
-        "loan_amount": round(float(loan_amount),2),
-        "tenure_years": round(float(tenure_years),2),
-        "monthly_payment": round(float(monthly_payment),2),
-        "bsd": round(float(bsd),2),
+        "purchase_price": round((purchase_price.item()),2),
+        "loan_amount": round((loan_amount.item()),2),
+        "tenure_years": round((tenure_years.item()),2),
+        "monthly_payment": round((monthly_payment.item()),2),
+        "bsd": round((bsd.item()),2),
         "breakdown": breakdown
     }
 
@@ -257,7 +255,7 @@ with c1:
         prediction = st.session_state['prediction']
         # Display the estimated valuation with increased font size
         st.markdown(f"""
-            <h3 style="font-size: 20px; font-weight: bold;">Estimated valuation of home: ${round(float(prediction), 2)}</h3>
+            <h3 style="font-size: 20px; font-weight: bold;">Estimated valuation of home: ${round((prediction.item()), 2)}</h3>
         """, unsafe_allow_html=True)
         
         loan_tenure = st.slider("Select Loan Tenure (years):", min_value=1, max_value=35, value=20, step=1)

@@ -138,9 +138,9 @@ def calculate_hdb_loan_details(purchase_price, tenure_years, grants ):
 
     return {
         "purchase_price": round((purchase_price.item()),2),
-        "loan_amount": round((loan_amount.item()),2),
-        "tenure_years": round((tenure_years.item()),2),
-        "monthly_payment": round((monthly_payment.item()),2),
+        "loan_amount": round((loan_amount),2),
+        "tenure_years": round((tenure_years),2),
+        "monthly_payment": round((monthly_payment),2),
         "bsd": round((bsd.item()),2),
         "breakdown": breakdown
     }
